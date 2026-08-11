@@ -55,6 +55,9 @@ body {
   font-feature-settings: 'tnum' 1;
   line-height: 1.45;
   overscroll-behavior-y: none;
+  /* Als installierte App reicht die Seite bis unter die iOS-Statusleiste
+     (viewport-fit=cover); ohne dieses Padding kollidiert der Header mit der Uhr. */
+  padding-top: env(safe-area-inset-top);
 }
 
 input,
