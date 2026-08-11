@@ -1,48 +1,49 @@
-import { useMemo } from 'react'
 import InstallHint from '../components/InstallHint.tsx'
 import MatchRow from '../components/MatchRow.tsx'
 import { Button, Heading, List, Note, Team } from '../components/ui.tsx'
 import { formatDate } from '../lib/format.ts'
-import { pairingOptions } from '../lib/rotation.ts'
+import type { Suggestion } from '../lib/rotation.ts'
 import type { Stats } from '../lib/stats.ts'
 import { t } from '../strings.ts'
-import type { AppData, Player } from '../types.ts'
+import type { Player } from '../types.ts'
+
+function suggestionNote(suggestion: Suggestion): string {
+  if (suggestion.kind === 'series' && suggestion.wins) {
+    const [a, b] = suggestion.wins
+    return suggestion.matchNo === 3 ? t.home.seriesDecider(a, b) : t.home.seriesSecond(a, b)
+  }
+  if (suggestion.lastPlayedOn) return `${t.home.seriesNew} – ${t.home.lastPlayed(formatDate(suggestion.lastPlayedOn))}`
+  return `${t.home.seriesNew} – ${t.home.neverPlayed}`
+}
 
 export default function Home({
-  data,
   stats,
+  suggestion,
   playerById,
   onAddMatch,
   onShowAll,
 }: {
-  data: AppData
   stats: Stats
+  suggestion: Suggestion | null
   playerById: Map<number, Player>
   onAddMatch: () => void
   onShowAll: () => void
 }) {
-  const suggested = useMemo(
-    () => pairingOptions(data.players.map((player) => player.id), data.matches)[0],
-    [data],
-  )
-
   const recent = [...stats.outcomes].reverse().slice(0, 4)
 
   return (
     <div className="space-y-9">
       <section>
-        {suggested ? (
+        {suggestion ? (
           <>
             <Heading>{t.home.nextTitle}</Heading>
             <div className="border-y border-line py-4 text-[1.7rem] leading-[1.2] font-semibold tracking-[-0.035em]">
-              <Team players={suggested.teams[0].map((id) => playerById.get(id))} />
+              <Team players={suggestion.teams[0].map((id) => playerById.get(id))} />
               <div className="text-[1.05rem] font-normal tracking-normal text-faint">{t.home.versus}</div>
-              <Team players={suggested.teams[1].map((id) => playerById.get(id))} />
+              <Team players={suggestion.teams[1].map((id) => playerById.get(id))} />
             </div>
             <div className="mt-2">
-              <Note>
-                {suggested.lastPlayedOn ? t.home.lastPlayed(formatDate(suggested.lastPlayedOn)) : t.home.neverPlayed}
-              </Note>
+              <Note>{suggestionNote(suggestion)}</Note>
             </div>
           </>
         ) : null}

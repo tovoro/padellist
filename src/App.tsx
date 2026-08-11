@@ -4,6 +4,7 @@ import BottomNav, { type Tab } from './components/BottomNav.tsx'
 import MatchForm from './components/MatchForm.tsx'
 import PasswordGate from './components/PasswordGate.tsx'
 import SettingsSheet from './components/SettingsSheet.tsx'
+import { nextSuggestion } from './lib/rotation.ts'
 import { computeStats } from './lib/stats.ts'
 import { t } from './strings.ts'
 import type { AppData, Match, MatchInput } from './types.ts'
@@ -45,6 +46,10 @@ export default function App() {
 
   const stats = useMemo(() => (data ? computeStats(data) : null), [data])
   const playerById = useMemo(() => new Map((data?.players ?? []).map((player) => [player.id, player])), [data])
+  const suggestion = useMemo(
+    () => (data && stats ? nextSuggestion(data.players.map((player) => player.id), stats.outcomes) : null),
+    [data, stats],
+  )
 
   if (authorised === null) return <div className="min-h-dvh" />
 
@@ -93,8 +98,8 @@ export default function App() {
       <main className="mx-auto max-w-xl px-4">
         {tab === 'home' ? (
           <Home
-            data={data}
             stats={stats}
+            suggestion={suggestion}
             playerById={playerById}
             onAddMatch={() => setForm({ mode: 'new' })}
             onShowAll={() => setTab('matches')}
@@ -113,6 +118,7 @@ export default function App() {
         <MatchForm
           players={data.players}
           matches={data.matches}
+          suggestedTeams={suggestion?.teams ?? null}
           existing={form.mode === 'edit' ? form.match : null}
           onClose={() => setForm({ mode: 'closed' })}
           onSubmit={submitMatch}

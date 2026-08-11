@@ -41,6 +41,7 @@ function Stepper({ value, onChange, label }: { value: number; onChange: (next: n
 export default function MatchForm({
   players,
   matches,
+  suggestedTeams,
   existing,
   onClose,
   onSubmit,
@@ -48,6 +49,7 @@ export default function MatchForm({
 }: {
   players: Player[]
   matches: Match[]
+  suggestedTeams: [TeamIds, TeamIds] | null
   existing: Match | null
   onClose: () => void
   onSubmit: (input: MatchInput) => Promise<void>
@@ -66,6 +68,8 @@ export default function MatchForm({
   const [playedOn, setPlayedOn] = useState(existing?.playedOn ?? today())
   const [teams, setTeams] = useState<[TeamIds, TeamIds]>(() => {
     if (existing) return [existing.team1, existing.team2]
+    // Vorauswahl folgt der Serien-Logik; Fallback auf die Rotations-Ordnung.
+    if (suggestedTeams) return suggestedTeams
     const suggested = options[0]
     if (suggested) return suggested.teams
     const ids = players.map((player) => player.id)

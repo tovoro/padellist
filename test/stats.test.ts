@@ -1,5 +1,5 @@
 import { computeStats } from '../src/lib/stats.ts'
-import { pairingOptions } from '../src/lib/rotation.ts'
+import { nextSuggestion, pairingKey, pairingOptions } from '../src/lib/rotation.ts'
 import type { Match } from '../src/types.ts'
 import type { StatsInput } from '../src/lib/stats.ts'
 
@@ -184,6 +184,106 @@ console.log('\n8. Rotation schlaegt die am wenigsten gespielte Paarung vor')
   check('bei Gleichstand aeltestes zuerst', tie[0]!.key === '1-3|2-4', `-> ${tie[0]!.key}`)
 
   check('kein Vorschlag bei 5 Spielern', pairingOptions([1, 2, 3, 4, 5], []).length === 0)
+}
+
+console.log('\n9. Serien-Vorschlag (Best of three ueber mehrere Termine)')
+{
+  const ids = [1, 2, 3, 4]
+  const outcomesOf = (matches: Match[]) => computeStats({ players, matches }).outcomes
+  const keyOf = (teams: [readonly number[], readonly number[]]) =>
+    pairingKey([teams[0][0]!, teams[0][1]!], [teams[1][0]!, teams[1][1]!])
+
+  const empty = nextSuggestion(ids, [])
+  check('leer -> neue Serie', empty?.kind === 'fresh')
+  check('leer -> erste Rotations-Option', empty !== null && keyOf(empty.teams) === '1-2|3-4')
+
+  const one = nextSuggestion(ids, outcomesOf([match('2026-10-05', [1, 2], [3, 4], [[6, 3]])]))
+  check('nach 1 Match -> Serie geht weiter', one?.kind === 'series')
+  check('gleiche Konstellation', one !== null && keyOf(one.teams) === '1-2|3-4')
+  check('Stand 1:0', one?.wins?.join(':') === '1:0')
+  check('naechstes ist Match 2', one?.matchNo === 2)
+
+  // 1:1 mit Seitentausch im zweiten Match - zaehlt trotzdem als dieselbe Serie.
+  const level = nextSuggestion(
+    ids,
+    outcomesOf([
+      match('2026-10-05', [1, 2], [3, 4], [[6, 3]]),
+      match('2026-10-12', [3, 4], [1, 2], [[6, 2]]),
+    ]),
+  )
+  check('1:1 -> Entscheidungsspiel', level?.kind === 'series' && level.matchNo === 3)
+  check('1:1 -> Stand aus Sicht des letzten Matchs', level?.wins?.join(':') === '1:1')
+
+  const swept = nextSuggestion(
+    ids,
+    outcomesOf([
+      match('2026-10-05', [1, 2], [3, 4], [[6, 3]]),
+      match('2026-10-12', [1, 2], [3, 4], [[6, 2]]),
+    ]),
+  )
+  check('2:0 -> Serie vorbei, neue Konstellation', swept?.kind === 'fresh')
+  check('2:0 -> nicht dieselbe Konstellation', swept !== null && keyOf(swept.teams) !== '1-2|3-4')
+
+  const decider = nextSuggestion(
+    ids,
+    outcomesOf([
+      match('2026-10-05', [1, 2], [3, 4], [[6, 3]]),
+      match('2026-10-12', [3, 4], [1, 2], [[6, 2]]),
+      match('2026-10-19', [1, 2], [3, 4], [[7, 5]]),
+    ]),
+  )
+  check('2:1 nach drei Matches -> neue Serie', decider?.kind === 'fresh')
+
+  // Unentschieden verbraucht ein Serienmatch, entscheidet aber nichts.
+  const withDraw = nextSuggestion(
+    ids,
+    outcomesOf([
+      match('2026-11-02', [1, 2], [3, 4], [[6, 3]]),
+      match('2026-11-09', [1, 2], [3, 4], [[6, 4], [4, 6]]),
+    ]),
+  )
+  check('Sieg + Unentschieden -> Serie laeuft, Match 3', withDraw?.kind === 'series' && withDraw.matchNo === 3)
+  check('Stand bleibt 1:0', withDraw?.wins?.join(':') === '1:0')
+
+  const threeWithDraw = nextSuggestion(
+    ids,
+    outcomesOf([
+      match('2026-11-02', [1, 2], [3, 4], [[6, 3]]),
+      match('2026-11-09', [1, 2], [3, 4], [[6, 4], [4, 6]]),
+      match('2026-11-16', [3, 4], [1, 2], [[6, 2]]),
+    ]),
+  )
+  check('nach 3 Matches wird gewechselt, auch bei 1:1', threeWithDraw?.kind === 'fresh')
+
+  // Doppel-Spieltag: zwei Matches gleicher Konstellation am selben Datum.
+  const doubleDay = nextSuggestion(
+    ids,
+    outcomesOf([
+      match('2026-12-07', [1, 2], [3, 4], [[6, 3]]),
+      match('2026-12-07', [3, 4], [1, 2], [[6, 1]]),
+    ]),
+  )
+  check('Doppel-Spieltag zaehlt beide Matches', doubleDay?.kind === 'series' && doubleDay.matchNo === 3)
+
+  // Die echte Historie: Spieler 1=T, 2=L, 3=C, 4=A.
+  const real = nextSuggestion(
+    ids,
+    outcomesOf([
+      match('2026-04-20', [1, 4], [3, 2], [[6, 7], [6, 2], [4, 6]]),
+      match('2026-05-04', [3, 2], [1, 4], [[6, 1], [2, 6], [2, 6]]),
+      match('2026-05-11', [3, 2], [4, 1], [[6, 4], [7, 6]]),
+      match('2026-05-18', [1, 3], [4, 2], [[7, 6], [6, 2]]),
+      match('2026-06-08', [1, 3], [2, 4], [[6, 0], [6, 2]]),
+      match('2026-06-21', [3, 4], [2, 1], [[2, 6], [4, 6]]),
+      match('2026-08-03', [1, 2], [3, 4], [[6, 2], [6, 4]]),
+      match('2026-08-03', [3, 4], [1, 2], [[6, 2], [6, 4]]),
+      match('2026-08-10', [1, 4], [3, 2], [[6, 7], [4, 6]]),
+    ]),
+  )
+  check('echte Historie -> Serie laeuft weiter', real?.kind === 'series')
+  check('echte Historie -> gleiche Konstellation wie am 10.08.', real !== null && keyOf(real.teams) === '1-4|2-3')
+  check('echte Historie -> Stand 0:1', real?.wins?.join(':') === '0:1')
+  check('echte Historie -> naechstes ist Match 2', real?.matchNo === 2)
 }
 
 if (failures > 0) throw new Error(`${failures} Check(s) fehlgeschlagen.`)

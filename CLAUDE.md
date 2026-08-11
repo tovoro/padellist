@@ -98,8 +98,20 @@ Spiele. Die Validierung verbietet nur unentschiedene *Saetze*, nicht unentschied
 `played_on, id`. Nur so wirken nachtraegliche Korrekturen korrekt. Die Rangliste sortiert
 nach Siegquote, bei Gleichstand nach Spieldifferenz.
 
-**Der Rotationsvorschlag wird abgeleitet, nie gespeichert.** Ein gespeicherter Zeiger
-wuerde verrutschen, sobald ein Match nachtraeglich erfasst oder geloescht wird.
+**Der Vorschlag folgt Serien, nicht nur der Rotation.** Gespielt wird Best of three
+ueber mehrere Termine: dieselbe Konstellation bleibt, bis ein Duo zwei Matches gewonnen
+hat oder drei gespielt sind - erst dann wird gewechselt. `nextSuggestion` in
+`src/lib/rotation.ts` erkennt die laufende Serie als hinterste Kette gleicher
+Konstellation in der chronologischen Historie: laeuft sie, wird dieselbe Konstellation
+samt Serienstand vorgeschlagen; ist sie entschieden, greift die Rotations-Ordnung
+(am wenigsten gespielte Konstellation, bei Gleichstand die aelteste).
+
+Unentschieden zaehlen als gespieltes Serienmatch ohne Sieg; nach drei Matches wird
+immer gewechselt. Seitentausch innerhalb der Serie ist egal (Vergleich ueber duoKey).
+
+**Nichts davon wird gespeichert.** Serie wie Rotation sind reine Ableitungen - ein
+gespeicherter Zeiger wuerde verrutschen, sobald ein Match nachtraeglich erfasst oder
+geloescht wird.
 
 **Kein Rollenkonzept, sondern ein Verlauf.** Alle vier duerfen alles erfassen, aendern
 und loeschen. Statt Rechte zu vergeben, schreibt `changes` jede Mutation mit - sichtbar
