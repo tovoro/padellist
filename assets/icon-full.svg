@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" fill="#0b100e"/>
+  <g transform="translate(256 256) scale(0.68) translate(-256 -256)">
+    <g transform="rotate(-18 256 256)">
+      <path d="M256 66c62 0 114 52 114 122 0 62-38 106-72 128l-10 24h-64l-10-24c-34-22-72-66-72-128C142 118 194 66 256 66Z" fill="#00c247"/>
+      <rect x="234" y="336" width="44" height="106" rx="20" fill="#00c247"/>
+      <rect x="222" y="330" width="68" height="22" rx="11" fill="#0b100e" opacity="0.35"/>
+      <g fill="#0b100e">
+        <circle cx="234" cy="132" r="14"/><circle cx="278" cy="132" r="14"/>
+        <circle cx="212" cy="176" r="14"/><circle cx="256" cy="176" r="14"/><circle cx="300" cy="176" r="14"/>
+        <circle cx="212" cy="220" r="14"/><circle cx="256" cy="220" r="14"/><circle cx="300" cy="220" r="14"/>
+        <circle cx="234" cy="264" r="14"/><circle cx="278" cy="264" r="14"/>
+      </g>
+    </g>
+    <circle cx="374" cy="392" r="54" fill="#ffc800"/>
+    <path d="M332 362c26 14 42 40 42 70" fill="none" stroke="#0b100e" stroke-width="9" stroke-linecap="round" opacity="0.45"/>
+    <path d="M416 362c-26 14-42 40-42 70" fill="none" stroke="#0b100e" stroke-width="9" stroke-linecap="round" opacity="0.45"/>
+  </g>
+</svg>
