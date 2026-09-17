@@ -1,8 +1,0 @@
-name = "padellist"
-compatibility_date = "2026-08-11"
-pages_build_output_dir = "dist"
-
-[[d1_databases]]
-binding = "DB"
-database_name = "padellist"
-database_id = "ea692027-f0c9-4154-b99a-87b4c0f0623d"

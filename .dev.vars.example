@@ -1,5 +1,0 @@
-# Kopieren nach .dev.vars (gitignored) fuer die lokale Entwicklung.
-# In Produktion via `wrangler pages secret put <NAME>` setzen.
-
-APP_PASSWORD=padel
-SESSION_SECRET=lokales-entwicklungs-secret-bitte-in-prod-ersetzen

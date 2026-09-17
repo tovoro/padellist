@@ -10,9 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/tovoro/padellist/actions/workflows/ci.yml"><img src="https://github.com/tovoro/padellist/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/Lizenz-MIT-1d7440" alt="MIT"></a>
-  <img src="https://img.shields.io/badge/Cloudflare-Pages%20%2B%20D1-f38020" alt="Cloudflare Pages + D1">
 </p>
 
 <p align="center">
@@ -33,9 +31,10 @@
 
 ## Stack
 
-Bewusst langweilig: Vite, React 19, TypeScript (strict) und Tailwind 4 auf
-Cloudflare Pages, Daten in D1 (SQLite). Laufzeit-Abhängigkeiten: `react` und
-`react-dom` — sonst nichts. Kein Router, kein ORM, keine Component-Library.
+Bewusst langweilig: Vite, React 19, TypeScript (strict) und Tailwind 4 für
+das Frontend. Backend: Node 22+ mit eingebautem `node:sqlite`, kein ORM,
+kein Framework. Laufzeit-Abhängigkeiten: `react` und `react-dom` — sonst
+nichts. Kein Router, keine Component-Library.
 
 Details und Architektur-Entscheidungen: [CLAUDE.md](CLAUDE.md)
 
@@ -43,34 +42,27 @@ Details und Architektur-Entscheidungen: [CLAUDE.md](CLAUDE.md)
 
 ```
 npm install
-cp .dev.vars.example .dev.vars
-npm run db:apply
-npm run dev:api     # Pages Functions + lokale D1 auf :8788
+cp .env.example .env
+npm run dev:api     # Node-Server mit SQLite auf :8080
 npm run dev         # Vite auf :5173, leitet /api weiter
 ```
 
-Login mit dem Passwort aus `.dev.vars` (Standard: `padel`).
-`npm test` prüft Statistik und Rotation, `npm run typecheck` App und Functions.
+Login mit dem Passwort aus `.env` (Standard: `padel`).
+`npm test` prüft Statistik und Rotation, `npm run typecheck` App und Server.
 
 ## Deployment
 
+Push auf `main` baut ein Docker-Image und schiebt es in die Forgejo-Registry.
+Das Ansible-Playbook im selfhosted-Repo zieht das Image auf den LXC und
+startet den Container neu.
+
 ```
-npx wrangler login
-npx wrangler d1 create padellist        # id in wrangler.toml eintragen
-npx wrangler pages project create padellist
-npm run db:apply:remote
-npx wrangler pages secret put APP_PASSWORD
-npx wrangler pages secret put SESSION_SECRET
-npm run deploy
+docker build -t padellist .
+docker run -p 8080:8080 -v ./data:/data -e APP_PASSWORD=... -e SESSION_SECRET=... padellist
 ```
 
 `SESSION_SECRET` ist ein beliebiger langer Zufallswert, z. B. aus
 `openssl rand -base64 32`.
-
-Danach deployt jeder Push auf `main` automatisch über GitHub Actions
-(Tests, Typecheck, D1-Migrationen, Pages-Deploy). Der Workflow braucht zwei
-Repo-Secrets: `CLOUDFLARE_ACCOUNT_ID` und `CLOUDFLARE_API_TOKEN`
-(Token mit *Cloudflare Pages: Edit* und *D1: Edit*).
 
 ## Lizenz
 

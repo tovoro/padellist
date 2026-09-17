@@ -18,8 +18,9 @@ Nur Code und Kommentare bleiben ASCII.
 
 ## Stack
 
-Vite 8 + React 19 + TypeScript (strict) auf Cloudflare Pages, D1 als Datenbank,
-Tailwind 4, `vite-plugin-pwa`.
+Vite 8 + React 19 + TypeScript (strict), Tailwind 4, `vite-plugin-pwa`.
+Backend: Node 22+ mit eingebautem `node:sqlite` (WAL-Modus), kein ORM.
+Deployment: Docker-Image via Forgejo Actions, LXC in der DMZ hinter Caddy.
 
 Laufzeit-Abhaengigkeiten sind ausschliesslich `react` und `react-dom`. Das ist Absicht:
 das Projekt soll mit minimalem Wartungsaufwand jahrelang laufen.
@@ -28,20 +29,21 @@ das Projekt soll mit minimalem Wartungsaufwand jahrelang laufen.
 
 - Keine Router-Library - vier Tabs liegen in `useState` in `App.tsx`.
 - Keine Server-State-Library - `fetch` plus Neuladen nach jeder Mutation reicht bei vier Nutzern.
-- Kein ORM - D1 wird direkt ueber `env.DB.prepare(...).bind(...)` angesprochen.
-- Kein API-Framework - Pages Functions routen ueber das Dateisystem.
+- Kein ORM - SQLite wird direkt ueber `node:sqlite` (`DatabaseSync`) angesprochen.
+- Kein API-Framework - Routing liegt in `server/api.ts` als Array von Regex-Routen.
 - Keine Component-Library - Primitive stehen in `src/components/ui.tsx`.
-- Keine Krypto- oder JWT-Library - Web Crypto ist in der Workers-Runtime enthalten.
+- Keine Krypto- oder JWT-Library - Web Crypto (`globalThis.crypto.subtle`) reicht.
+- Kein Express/Fastify - `node:http` genuegt fuer eine Handvoll Endpunkte.
 
 ## Aufbau
 
 ```
-functions/api/     Pages Functions, Dateisystem-Routing
-server/            Serverhilfen, bewusst AUSSERHALB von functions/
+server/            Node-Server: HTTP, Routing, DB, statische Dateien
+server/handlers/   Ein Modul pro API-Endpunkt (data, login, matches, players, session)
 src/lib/           Reine Funktionen: Statistik, Rotation, Formatierung
 src/views/         Die drei Tabs: Heute, Rangliste, Spiele
 src/components/    UI-Primitive, MatchRow, MatchForm, PasswordGate, BottomNav
-migrations/        D1-Migrationen
+migrations/        SQLite-Migrationen (dieselben wie frueher unter D1)
 test/              Fixture-Tests fuer die Statistik
 ```
 
@@ -53,19 +55,13 @@ dieselbe Zahl noch einmal.
 In der Spieleliste steht immer der Sieger oben. Sonst muesste man die beiden Zeilen
 vergleichen, um das Resultat zu erkennen.
 
-`server/` liegt absichtlich nicht unter `functions/`: in Pages wird jede Datei unterhalb
-von `functions/` zu einer Route. Eine Hilfsdatei dort waere unter `/api/...` erreichbar.
-
-Die Middleware liegt unter `functions/api/_middleware.ts`, nicht im Wurzelverzeichnis -
-sonst liefe sie auch fuer jede statische Datei.
-
 ## Zwei tsconfigs
 
-`@cloudflare/workers-types` und die DOM-Lib definieren beide `Request`, `Response` und
+`@types/node` und die DOM-Lib definieren beide `Request`, `Response` und
 `fetch` mit unterschiedlichen Signaturen. Deshalb:
 
 - `tsconfig.json` - `src/`, `test/`, mit DOM
-- `tsconfig.functions.json` - `functions/`, `server/`, mit Workers-Typen, ohne DOM
+- `tsconfig.server.json` - `server/`, mit Node-Typen, ohne DOM
 
 `src/types.ts` wird von beiden eingebunden und enthaelt daher nur Typdeklarationen.
 
@@ -77,18 +73,16 @@ Ein einziger Leseendpunkt `GET /api/data` liefert Spieler und Matches samt Saetz
 Saemtliche Statistik entsteht daraus clientseitig in `src/lib/stats.ts`.
 
 Das ist bei diesem Datenvolumen (rund 30 KB) die einfachere Loesung: keine doppelten
-Typen zwischen Worker und Client, testbare reine Funktionen, und der Service Worker
+Typen zwischen Server und Client, testbare reine Funktionen, und der Service Worker
 kann `/api/data` cachen, sodass Rangliste und Statistik offline lesbar bleiben.
 
 Mutationen (`POST`/`PUT`/`DELETE`) werden von einem erneuten Laden von `/api/data` gefolgt.
 
 ## Fallstricke
 
-**Match anlegen.** `last_insert_rowid()` funktioniert innerhalb eines D1-Batch nicht wie
-erwartet: nach dem ersten `sets`-Insert zeigt es auf die Satz-Zeile, nicht auf das Match.
-Deshalb erst `INSERT ... RETURNING id`, dann die Saetze als Batch - und bei Fehlschlag
-das Match wieder loeschen. Ein Match ohne Saetze haette keinen bestimmbaren Sieger.
-Beim Bearbeiten ist die Id bekannt, dort passt alles in einen atomaren Batch.
+**Match anlegen.** Insert, Saetze und Verlaufseintrag laufen in einer einzigen
+Transaktion (`transaction` in `server/db.ts`). Schlaegt ein Teil fehl, wird alles
+zurueckgerollt. Ein Match ohne Saetze haette keinen bestimmbaren Sieger.
 
 **Unentschieden sind moeglich.** Zwei Saetze 6:4 und 4:6 ergeben 1:1 Saetze und 10:10
 Spiele. Die Validierung verbietet nur unentschiedene *Saetze*, nicht unentschiedene
@@ -134,6 +128,10 @@ angezeigt - sie existiert nur, damit sich ein fehlerhafter Import mit
 `DELETE FROM matches WHERE source = 'playtomic'` gezielt zuruecknehmen laesst, ohne von
 Hand erfasste Spiele zu beruehren.
 
+**D1-Uebernahme.** Beim ersten Start mit einer aus Cloudflare D1 exportierten Datenbank
+erkennt `server/db.ts` die Tabelle `d1_migrations`, uebernimmt die Eintraege in
+`schema_migrations` und loescht die alte Tabelle. Danach laufen die normalen Migrationen.
+
 ## Sprache
 
 Die Oberflaeche ist deutsch (de-CH, `ss` statt `ß`). Alle sichtbaren Texte stehen in
@@ -145,3 +143,16 @@ Encoding nirgends zum Thema wird.
 `npm test` laeuft ohne Test-Framework: Node 22 entfernt Typen selbst, deshalb genuegt
 `node test/stats.test.ts`. Dafuer stehen in `src/`-Importen explizite `.ts`-Endungen
 (`allowImportingTsExtensions`).
+
+## Deployment
+
+Push auf `main` baut ein Docker-Image und schiebt es in die Forgejo-Registry
+(`git.suveris.ch/tobi/padellist`). Das Playbook `playbooks/padellist.yml` im
+selfhosted-Repo zieht das Image auf den LXC und startet den Container neu.
+
+Der Container laeuft als User `node` (uid 1000), die SQLite-Datei liegt unter
+`/data/padellist.db` auf einem gemounteten Volume. Caddy terminiert TLS und leitet
+an Port 8080 weiter.
+
+Umgebungsvariablen: `APP_PASSWORD`, `SESSION_SECRET`, `DB_PATH`, `PORT`.
+In der Produktion setzt Ansible die Werte aus dem Vault (selfhosted, Rolle padellist).

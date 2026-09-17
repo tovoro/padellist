@@ -1,9 +1,10 @@
-import type { Env } from '../../server/env'
-import { error, json } from '../../server/http'
+import type { ApiContext } from '../api.ts'
+import { transaction } from '../db.ts'
+import { error, json } from '../http.ts'
 
 const MAX_NAME = 24
 
-export const onRequestPut: PagesFunction<Env> = async ({ request, env }) => {
+export async function renamePlayers({ request, db }: ApiContext): Promise<Response> {
   let body: unknown
   try {
     body = await request.json()
@@ -22,11 +23,10 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env }) => {
     updates.push({ id: id as number, name: name.trim().slice(0, MAX_NAME) })
   }
 
-  await env.DB.batch(
-    updates.map((update) =>
-      env.DB.prepare('UPDATE players SET name = ? WHERE id = ?').bind(update.name, update.id),
-    ),
-  )
+  transaction(db, () => {
+    const update = db.prepare('UPDATE players SET name = ? WHERE id = ?')
+    for (const item of updates) update.run(item.name, item.id)
+  })
 
   return json({ ok: true })
 }

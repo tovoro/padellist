@@ -18,7 +18,7 @@ function base64urlDecode(value: string): Uint8Array {
   return bytes
 }
 
-async function hmacKey(secret: string): Promise<CryptoKey> {
+async function hmacKey(secret: string) {
   return crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, [
     'sign',
     'verify',

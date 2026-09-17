@@ -1,0 +1,46 @@
+name: Docker
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+env:
+  REGISTRY: git.suveris.ch
+  IMAGE_NAME: tobi/padellist
+
+jobs:
+  build-and-push:
+    runs-on: docker
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Derive tags
+        id: tags
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="latest"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "sha=${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
+
+      # Tests und Typecheck laufen in der Build-Stage des Dockerfiles.
+      - name: Build
+        run: |
+          docker build \
+            -t "$REGISTRY/$IMAGE_NAME:${{ steps.tags.outputs.version }}" \
+            -t "$REGISTRY/$IMAGE_NAME:${{ steps.tags.outputs.sha }}" \
+            .
+
+      - name: Log in to the container registry
+        if: github.event_name != 'pull_request'
+        run: echo "${{ secrets.REGISTRY_TOKEN }}" | docker login "$REGISTRY" -u Tobi --password-stdin
+
+      - name: Push
+        if: github.event_name != 'pull_request'
+        run: |
+          docker push "$REGISTRY/$IMAGE_NAME:${{ steps.tags.outputs.version }}"
+          docker push "$REGISTRY/$IMAGE_NAME:${{ steps.tags.outputs.sha }}"

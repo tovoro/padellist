@@ -1,3 +1,5 @@
+.git
+.forgejo
 node_modules
 dist
 dev-dist
@@ -7,4 +9,5 @@ data
 *.db-wal
 .env
 .DS_Store
-*.local
+docs
+assets

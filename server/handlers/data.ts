@@ -1,6 +1,7 @@
-import type { Env } from '../../server/env'
-import { json } from '../../server/http'
-import type { AppData, ChangeAction, ChangeEntry, Match, MatchSet, MatchSnapshot, Player } from '../../src/types'
+import type { ApiContext } from '../api.ts'
+import { queryAll } from '../db.ts'
+import { json } from '../http.ts'
+import type { AppData, ChangeAction, ChangeEntry, Match, MatchSet, MatchSnapshot, Player } from '../../src/types.ts'
 
 /** Der Verlauf waechst langsam; mehr als die letzten Eintraege braucht niemand. */
 const CHANGE_LIMIT = 100
@@ -48,38 +49,34 @@ function parseSnapshot(value: string | null): MatchSnapshot | null {
   }
 }
 
-export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
-  const [players, matches, sets, changes] = await Promise.all([
-    env.DB.prepare('SELECT id, name, color, sort_order FROM players ORDER BY sort_order, id').all<PlayerRow>(),
-    env.DB
-      .prepare(
-        'SELECT id, played_on, t1p1, t1p2, t2p1, t2p2, note, source FROM matches ORDER BY played_on, id',
-      )
-      .all<MatchRow>(),
-    env.DB.prepare('SELECT match_id, set_no, t1_games, t2_games FROM sets ORDER BY match_id, set_no').all<SetRow>(),
-    env.DB
-      .prepare(
-        'SELECT id, at, action, match_id, before_json, after_json FROM changes ORDER BY at DESC, id DESC LIMIT ?',
-      )
-      .bind(CHANGE_LIMIT)
-      .all<ChangeRow>(),
-  ])
+export function getData({ db }: ApiContext): Response {
+  const players = queryAll<PlayerRow>(db, 'SELECT id, name, color, sort_order FROM players ORDER BY sort_order, id')
+  const matches = queryAll<MatchRow>(
+    db,
+    'SELECT id, played_on, t1p1, t1p2, t2p1, t2p2, note, source FROM matches ORDER BY played_on, id',
+  )
+  const sets = queryAll<SetRow>(db, 'SELECT match_id, set_no, t1_games, t2_games FROM sets ORDER BY match_id, set_no')
+  const changes = queryAll<ChangeRow>(
+    db,
+    'SELECT id, at, action, match_id, before_json, after_json FROM changes ORDER BY at DESC, id DESC LIMIT ?',
+    CHANGE_LIMIT,
+  )
 
   const setsByMatch = new Map<number, MatchSet[]>()
-  for (const row of sets.results) {
+  for (const row of sets) {
     const list = setsByMatch.get(row.match_id) ?? []
     list.push({ setNo: row.set_no, t1Games: row.t1_games, t2Games: row.t2_games })
     setsByMatch.set(row.match_id, list)
   }
 
   const data: AppData = {
-    players: players.results.map<Player>((row) => ({
+    players: players.map<Player>((row) => ({
       id: row.id,
       name: row.name,
       color: row.color,
       sortOrder: row.sort_order,
     })),
-    matches: matches.results.map<Match>((row) => ({
+    matches: matches.map<Match>((row) => ({
       id: row.id,
       playedOn: row.played_on,
       team1: [row.t1p1, row.t1p2],
@@ -88,7 +85,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
       source: row.source,
       sets: setsByMatch.get(row.id) ?? [],
     })),
-    changes: changes.results.map<ChangeEntry>((row) => ({
+    changes: changes.map<ChangeEntry>((row) => ({
       id: row.id,
       at: row.at,
       action: row.action as ChangeAction,
